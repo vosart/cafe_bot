@@ -11,7 +11,7 @@ Telegram бот для автоматизации работы кафе с AI-а
 
 ## Технологии
 
-- Python 3.11
+- Python 3.14.3
 - pyTelegramBotAPI
 - SQLite
 - Yandex Cloud API (YandexGPT)
