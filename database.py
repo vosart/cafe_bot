@@ -1,78 +1,118 @@
 import sqlite3
+from contextlib import contextmanager
 
 DB_NAME = "cafe.db"
 
+@contextmanager
+def get_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        yield cursor
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 def init_db():
 
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    with get_db() as cursor:
 
-    cursor.execute("""
-                   CREATE TABLE IF NOT EXISTS bookings (
-                       id           INTEGER PRIMARY     KEY AUTOINCREMENT,
-                       name         TEXT    NOT NULL,
-                       phone        TEXT    NOT NULL,
-                       date         TEXT    NOT NULL,
-                       guests       INTEGER NOT NULL,
-                       created_at   TEXT    DEFAULT     CURRENT_TIMESTAMP
-                   )
-                   """)
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS bookings (
+                        id           INTEGER PRIMARY     KEY AUTOINCREMENT,
+                        name         TEXT    NOT NULL,
+                        phone        TEXT    NOT NULL,
+                        date         TEXT    NOT NULL,
+                        guests       INTEGER NOT NULL,
+                        created_at   TEXT    DEFAULT     CURRENT_TIMESTAMP
+                    )
+                    """)
 
-def save_booking(name: str, phone: str, date: str, guests: int) -> int:
+        try:
+            cursor.execute("ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'pending'")
+        except: # pylint: disable=bare-except
+            pass
+        try:
+            cursor.execute("ALTER TABLE bookings ADD COLUMN telegram_id INTEGER")
+        except:
+            pass
 
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+def save_booking(name: str, phone: str, date: str, guests: int, telegram_id: int) -> int:
 
-    cursor.execute("""
-                   INSERT INTO bookings (name, phone, date, guests)
-                   VALUES (?, ?, ?, ?)
-                   """, (name, phone, date, guests))
+    with get_db() as cursor:
 
-    booking_id = cursor.lastrowid
+        cursor.execute("""
+                    INSERT INTO bookings (name, phone, date, guests, telegram_id)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, (name, phone, date, guests, telegram_id))
 
-    conn.commit()
-    conn.close()
+        booking_id = cursor.lastrowid
 
-    return booking_id
+        return booking_id
+
+def update_booking_status(booking_id: int, status: str):
+    with get_db() as cursor:
+
+        cursor.execute(
+            "UPDATE bookings SET status = ? WHERE id = ?",
+            (status, booking_id)
+        )
+
+def get_booking_by_id(booking_id: int):
+    with get_db() as cursor:
+
+
+        cursor.execute("SELECT * FROM bookings WHERE id = ?",
+                    (booking_id,))
+
+        return cursor.fetchone()
 
 def get_all_bookings() -> list:
 
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    with get_db() as cursor:
 
-    cursor.execute("""
-                   SELECT id, name, phone, date, guests, created_at
-                   FROM bookings
-                   ORDER BY created_at DESC
-                   """)
+        cursor.execute("""
+                    SELECT id, name, phone, date, guests, created_at, status
+                    FROM bookings
+                    ORDER BY created_at DESC
+                    """)
 
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+        return cursor.fetchall()
+
+# получить все брони пользователя по telegram_id
+def get_user_bookings(telegram_id: int) -> list:
+
+    with get_db() as cursor:
+        cursor.execute("""
+                    SELECT id, name, phone, date, guests, created_at, status
+                    FROM bookings
+                    WHERE telegram_id = ?
+                    ORDER BY created_at DESC
+                    """, (telegram_id,))
+
+        return cursor.fetchall()
+
 
 def get_stats() -> dict:
 
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    with get_db() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM bookings")
+        total = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM bookings")
-    total = cursor.fetchone()[0]
+        cursor.execute("""
+                    SELECT COUNT(*) FROM bookings
+                    WHERE DATE(created_at) = Date('now')
+                    """)
+        today = cursor.fetchone()[0]
 
-    cursor.execute("""
-                   SELECT COUNT(*) FROM bookings
-                   WHERE DATE(created_at) = Date('now')
-                   """)
-    today = cursor.fetchone()[0]
+        cursor.execute("SELECT SUM(guests) FROM bookings")
+        total_guests = cursor.fetchone()[0] or 0
 
-    cursor.execute("SELECT SUM(guests) FROM bookings")
-    total_guests = cursor.fetchone()[0] or 0
-
-    conn.close()
-
-    return {
-        "total": total,
-        "today": today,
-        "total_guests": total_guests
-    }
+        return {
+            "total": total,
+            "today": today,
+            "total_guests": total_guests
+        }

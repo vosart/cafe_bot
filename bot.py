@@ -1,10 +1,25 @@
+
+import math
 import telebot
 
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import TELEGRAM_TOKEN, ADMIN_ID
 from ai_handler import ask_ai
-from database import init_db, save_booking, get_all_bookings, get_stats
+from database import (init_db,
+                      save_booking,
+                      get_all_bookings,
+                      get_stats,
+                      update_booking_status,
+                      get_user_bookings,
+                      get_booking_by_id)
 from datetime import datetime
+
+
+STATUS_MAP = {
+    "pending": "⏳ Ожидает",
+    "confirmed": "✅ Подтверждена",
+    "cancelled": "❌ Отменена"
+}
 
 def is_valid_date(date_str: str) -> bool:
     try:
@@ -21,9 +36,20 @@ def main_menu():
     keyboard.add(InlineKeyboardButton("📋 Меню", callback_data="menu"))
     keyboard.add(InlineKeyboardButton("🕐 Часы работы", callback_data="hours"))
     keyboard.add(InlineKeyboardButton("📅 Забронировать столик", callback_data="book"))
+    keyboard.add(InlineKeyboardButton("📂 Мои брони", callback_data="booking_page_0"))
     keyboard.add(InlineKeyboardButton("❓ Задать вопрос", callback_data="question"))
 
     return keyboard
+
+def format_booking(booking_id, name, date, guests, phone):
+
+    return (
+        f"🔔 Бронь #{booking_id}\n\n"
+        f"👤 Имя: {name}\n"
+        f"📅 Дата: {date}\n"
+        f"👥 Гостей: {guests}\n"
+        f"📞 Телефон: {phone}\n"
+    )
 
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -118,6 +144,7 @@ def get_guests(message):
         )
         bot.register_next_step_handler(msg, get_guests)
         return
+
     if int(guests) < 1 or int(guests) > 20:
         msg = bot.send_message(
             message.chat.id,
@@ -125,6 +152,7 @@ def get_guests(message):
             )
         bot.register_next_step_handler(msg, get_guests)
         return
+
     booking_data[message.chat.id]["guests"] = guests
 
     msg = bot.send_message(
@@ -148,23 +176,42 @@ def get_phone(message):
 
     data = booking_data[message.chat.id]
 
-    booking_id = save_booking(
+    try:
+        booking_id = save_booking(
         name=data["name"],
         phone=data["phone"],
         date=data["date"],
-        guests=data["guests"]
+        guests=data["guests"],
+        telegram_id=message.from_user.id
         )
+    except Exception as e:
+        print(f"Ошибка БД: {e}")
+        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        return
+
 
     bot.send_message(
         message.chat.id,
-        f"✅ Бронь принята!\n"
-        f"👤 Имя: {data["name"]}\n"
-        f"📅 Дата: {data["date"]}\n"
-        f"👥 Гостей: {data["guests"]}\n"
-        f"📞 Телефон: {data["phone"]}\n"
-        f"Номер брони: #{booking_id}\n"
-        f"Ждём вас! 🎉\n",
+        f"✅ Бронь принята!\n\n"
+        + format_booking(booking_id, data["name"], data["date"], data["guests"], data["phone"])
+        + f"Ждём вас! 🎉\n",
         parse_mode="Markdown"
+    )
+
+    #Уведомление админу
+    confirm_markup = InlineKeyboardMarkup()
+    confirm_markup.row(
+        InlineKeyboardButton("✅ Подтвердить", callback_data=f"confirm_{booking_id}_{message.from_user.id}"),
+        InlineKeyboardButton("❌ Отклонить",   callback_data=f"reject_{booking_id}_{message.from_user.id}")
+    )
+
+    bot.send_message(
+        ADMIN_ID,
+        f"🔔 *Новая бронь*\n\n"
+        + format_booking(booking_id, data["name"], data["date"], data["guests"], data["phone"])
+        + f"👤 Telegram ID: {message.from_user.id}",
+        parse_mode="Markdown",
+        reply_markup=confirm_markup
     )
 
     bot.send_message(
@@ -174,6 +221,121 @@ def get_phone(message):
     )
     del booking_data[message.chat.id]
 
+@bot.callback_query_handler(func=lambda call: call.data == "my_bookings")
+def user_bookings_handler(call):
+    bot.answer_callback_query(call.id)
+
+    try:
+        data = get_user_bookings(call.from_user.id)
+    except Exception as e:
+        print(f"Ошибка БД: {e}")
+        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        return
+
+    if not data:
+        bot.send_message(
+            call.message.chat.id,
+            "У вас нет броней"
+        )
+    else:
+        for row in data:
+            cancel_markup = InlineKeyboardMarkup()
+            cancel_markup.row(InlineKeyboardButton(
+                "❌ Отменить",
+                callback_data=f"cancel_{row[0]}"))
+            bot.send_message(
+                call.message.chat.id,
+                format_booking(row[0], row[1], row[3], row[4], row[2])
+                + f"📌 Статус: {STATUS_MAP.get([row[6]])}\n",
+                parse_mode="Markdown",
+                reply_markup=cancel_markup
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_"))
+def handle_user_booking_cancel(call):
+    bot.answer_callback_query(call.id)
+    booking_id = int(call.data.split("_")[1])
+    update_booking_status(booking_id, "cancelled")
+    bot.send_message(
+        call.message.chat.id,
+        f"✅ Ваша бронь *#{booking_id}* отменена!\n",
+        parse_mode="Markdown"
+    )
+
+    try:
+        data = get_booking_by_id(booking_id)
+    except Exception as e:
+        print(f"Ошибка БД: {e}")
+        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        return
+
+    bot.send_message(
+        ADMIN_ID,
+        f"🚫 Пользователь отменил бронь!\n\n"
+        + format_booking(data[0], data[1], data[3], data[4], data[2]),
+        parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("confirm_") or
+    call.data.startswith("reject_"))
+def handle_booking_status(call):
+    parts = call.data.split("_")
+    action = parts[0]
+    booking_id = int(parts[1])
+    user_id = int(parts[2])
+
+    if action == "confirm":
+        try:
+            update_booking_status(booking_id, "confirmed")
+        except Exception as e:
+            print(f"Ошибка БД: {e}")
+            bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+            return
+
+        try:
+            bot.send_message(
+                user_id,
+                f"✅ Ваша бронь *#{booking_id}* подтверждена!\n"
+                f"Ждём вас в кафе *Уют*! 🎉",
+                parse_mode="Markdown"
+            )
+        except:
+            pass
+
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text=call.message.text + "\n\n✅ *Подтверждено*",
+            parse_mode="Markdown"
+        )
+        bot.answer_callback_query(call.id, "Бронь подтверждена")
+
+    elif action == "reject":
+        try:
+            update_booking_status(booking_id, "rejected")
+        except Exception as e:
+            print(f"Ошибка БД: {e}")
+            bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+            return
+
+        try:
+            bot.send_message(
+                user_id,
+                f"❌ Ваша бронь *#{booking_id}* отклонена.\n"
+                f"Для уточнения деталей свяжитесь с нами.",
+                parse_mode="Markdown"
+            )
+        except:
+            pass
+
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text=call.message.text + "\n\n❌ *Отклонено*",
+            parse_mode="Markdown"
+        )
+        bot.answer_callback_query(call.id, "Бронь отклонена!")
 
 @bot.callback_query_handler(func=lambda call: call.data == "question")
 def question_handler(call):
@@ -226,7 +388,12 @@ def admin_handler(message):
 def admin_bookings_handler(call):
     bot.answer_callback_query(call.id)
 
-    all_bookings = get_all_bookings()
+    try:
+        all_bookings = get_all_bookings()
+    except Exception as e:
+        print(f"Ошибка БД: {e}")
+        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        return
 
     if not all_bookings:
         bot.send_message(
@@ -236,10 +403,10 @@ def admin_bookings_handler(call):
         return
 
     for row in all_bookings[:10]:
+        status_emoji = STATUS_MAP.get(row[6] or "pending", "⏳")
         bot.send_message(
             call.message.chat.id,
-            f"#{row[0]} | {row[1]} | {row[3]} | количество гостей: {row[4]} | {row[2]}",
-            parse_mode="Markdown"
+            f"{status_emoji} #{row[0]} | {row[1]} | {row[3]} | количество гостей: {row[4]} | {row[2]}",
         )
 
     if len(all_bookings) > 10:
@@ -248,10 +415,64 @@ def admin_bookings_handler(call):
             f"...и ещё {len(all_bookings) - 10} броней"
                          )
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith("booking_page_"))
+def booking_page_handler(call):
+    bot.answer_callback_query(call.id)
+    page_size = 3
+    page = int(call.data.split("_")[2])
+
+    try:
+        data = get_user_bookings(call.from_user.id)
+    except Exception as e:
+        print(f"Ошибка БД: {e}")
+        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        return
+
+    if data is None:
+        bot.send_message(call.message.chat.id, "⚠️ Ошибка базы данных, попробуйте позже")
+        return
+    if not data:
+        bot.send_message(
+            call.message.chat.id,
+            f"Броней пока нет"
+        )
+        return
+    total_pages = math.ceil(len(data)/3)
+    start = page * page_size
+    end = start + page_size
+    bookings = data[start:end]
+
+    for row in bookings:
+        bot.send_message(
+            call.message.chat.id,
+            f"🔔 Бронь {row[0]} Имя: {row[1]} Дата: {row[3]} Гостей: {row[4]} Телефон: {row[2]} | {STATUS_MAP.get(row[6])}"
+
+    )
+
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        InlineKeyboardButton("⬅️ Назад", callback_data=f"booking_page_{page-1}" if page > 0 else "none"),
+        InlineKeyboardButton(f"Страница {page+1} из {total_pages}", callback_data="none"),
+        InlineKeyboardButton("Вперёд ➡️", callback_data=f"booking_page_{page+1}" if page < total_pages - 1 else "none"),
+
+    )
+    bot.send_message(
+        call.message.chat.id,
+        "📋 Выберите страницу:",
+        reply_markup=markup
+    )
+
 @bot.callback_query_handler(func=lambda call: call.data == "admin_stats")
 def admin_stats_handler(call):
     bot.answer_callback_query(call.id)
-    stats = get_stats()
+
+    try:
+        stats = get_stats()
+    except Exception as e:
+        print(f"Ошибка БД: {e}")
+        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        return
+
     bot.send_message(
         call.message.chat.id,
         "📊 Статистика\n\n"
