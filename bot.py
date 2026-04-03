@@ -482,7 +482,3 @@ def admin_stats_handler(call):
         parse_mode="Markdown"
     )
 
-if __name__ == "__main__":
-    init_db()
-    print("Бот запущен...")
-    bot.infinity_polling()
