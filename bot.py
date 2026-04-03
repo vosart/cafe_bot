@@ -221,7 +221,7 @@ def get_phone(message):
     )
     del booking_data[message.chat.id]
 
-@bot.callback_query_handler(func=lambda call: call.data == "my_bookings")
+@bot.callback_query_handler(func=lambda call: call.data == "booking_page_0")
 def user_bookings_handler(call):
     bot.answer_callback_query(call.id)
 
@@ -246,10 +246,10 @@ def user_bookings_handler(call):
             bot.send_message(
                 call.message.chat.id,
                 format_booking(row[0], row[1], row[3], row[4], row[2])
-                + f"📌 Статус: {STATUS_MAP.get([row[6]])}\n",
+                + f"📌 Статус: {STATUS_MAP.get(row[6])}\n",
                 parse_mode="Markdown",
                 reply_markup=cancel_markup
-    )
+            )
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_"))
 def handle_user_booking_cancel(call):
