@@ -1,5 +1,8 @@
+import logging
 from openai import OpenAI
 from config import YANDEX_CLOUD_API_KEY, YANDEX_CLOUD_MODEL, YANDEX_CLOUD_FOLDER
+
+logger = logging.getLogger(__name__)
 
 client = OpenAI(
         api_key=YANDEX_CLOUD_API_KEY,
@@ -38,5 +41,5 @@ def ask_ai(user_question: str) -> str:
         )
         return response.choices[0].message.content
     except Exception as e:
-        print(f"Ошибка AI: {e}")
+        logger.error("Ошибка AI при обращении к YandexGPT: %s", e)
         return "Извините, сейчас не могу ответить. Позвоните нам: +7 (923) 000-00-00"

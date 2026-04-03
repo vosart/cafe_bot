@@ -1,5 +1,6 @@
 
 import math
+import logging
 import telebot
 
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -13,6 +14,13 @@ from database import (init_db,
                       get_user_bookings,
                       get_booking_by_id)
 from datetime import datetime
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 STATUS_MAP = {
     "pending": "⏳ Ожидает",
@@ -53,6 +61,7 @@ def format_booking(booking_id, name, date, guests, phone):
 
 @bot.message_handler(commands=["start"])
 def start(message):
+    logger.info("Пользователь %s запустил бота", message.from_user.id)
     bot.send_message(
         message.chat.id,
         "👋 Добро пожаловать в кафе *Уют*!\n\nЧем могу помочь?",
@@ -88,6 +97,7 @@ booking_data = {}
 @bot.callback_query_handler(func=lambda call: call.data == "book")
 def book_handler(call):
     bot.answer_callback_query(call.id)
+    logger.info("Пользователь %s начал бронирование", call.from_user.id)
     msg = bot.send_message(
         call.message.chat.id,
         "📅 *Бронирование столика*\n\n"
@@ -184,8 +194,10 @@ def get_phone(message):
         guests=data["guests"],
         telegram_id=message.from_user.id
         )
+        logger.info("Новая бронь #%s от пользователя %s на %s (%s гостей)",
+                    booking_id, message.from_user.id, data["date"], data["guests"])
     except Exception as e:
-        print(f"Ошибка БД: {e}")
+        logger.error("Ошибка БД при сохранении брони: %s", e)
         bot.send_message(message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
         return
 
@@ -228,7 +240,7 @@ def user_bookings_handler(call):
     try:
         data = get_user_bookings(call.from_user.id)
     except Exception as e:
-        print(f"Ошибка БД: {e}")
+        logger.error("Ошибка БД при получении броней пользователя %s: %s", call.from_user.id, e)
         bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
         return
 
@@ -256,6 +268,7 @@ def handle_user_booking_cancel(call):
     bot.answer_callback_query(call.id)
     booking_id = int(call.data.split("_")[1])
     update_booking_status(booking_id, "cancelled")
+    logger.info("Пользователь %s отменил бронь #%s", call.from_user.id, booking_id)
     bot.send_message(
         call.message.chat.id,
         f"✅ Ваша бронь *#{booking_id}* отменена!\n",
@@ -265,7 +278,7 @@ def handle_user_booking_cancel(call):
     try:
         data = get_booking_by_id(booking_id)
     except Exception as e:
-        print(f"Ошибка БД: {e}")
+        logger.error("Ошибка БД при получении брони #%s: %s", booking_id, e)
         bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
         return
 
@@ -288,8 +301,9 @@ def handle_booking_status(call):
     if action == "confirm":
         try:
             update_booking_status(booking_id, "confirmed")
+            logger.info("Админ подтвердил бронь #%s для пользователя %s", booking_id, user_id)
         except Exception as e:
-            print(f"Ошибка БД: {e}")
+            logger.error("Ошибка БД при подтверждении брони #%s: %s", booking_id, e)
             bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
             return
 
@@ -300,8 +314,8 @@ def handle_booking_status(call):
                 f"Ждём вас в кафе *Уют*! 🎉",
                 parse_mode="Markdown"
             )
-        except:
-            pass
+        except Exception as e:
+            logger.warning("Не удалось отправить уведомление пользователю %s: %s", user_id, e)
 
         bot.edit_message_text(
             chat_id=call.message.chat.id,
@@ -314,8 +328,9 @@ def handle_booking_status(call):
     elif action == "reject":
         try:
             update_booking_status(booking_id, "rejected")
+            logger.info("Админ отклонил бронь #%s для пользователя %s", booking_id, user_id)
         except Exception as e:
-            print(f"Ошибка БД: {e}")
+            logger.error("Ошибка БД при отклонении брони #%s: %s", booking_id, e)
             bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
             return
 
@@ -326,8 +341,8 @@ def handle_booking_status(call):
                 f"Для уточнения деталей свяжитесь с нами.",
                 parse_mode="Markdown"
             )
-        except:
-            pass
+        except Exception as e:
+            logger.warning("Не удалось отправить уведомление пользователю %s: %s", user_id, e)
 
         bot.edit_message_text(
             chat_id=call.message.chat.id,
@@ -340,6 +355,7 @@ def handle_booking_status(call):
 @bot.callback_query_handler(func=lambda call: call.data == "question")
 def question_handler(call):
     bot.answer_callback_query(call.id)
+    logger.info("Пользователь %s задаёт вопрос AI", call.from_user.id)
     msg = bot.send_message(
         call.message.chat.id,
         "❓ Напишите ваш вопрос, и я отвечу:"
@@ -347,6 +363,7 @@ def question_handler(call):
     bot.register_next_step_handler(msg, get_answer)
 
 def get_answer(message):
+    logger.info("AI-запрос от пользователя %s: %s", message.from_user.id, message.text)
     thinking_msg = bot.send_message(
         message.chat.id,
         "⏳ Думаю над ответом..."
@@ -374,8 +391,11 @@ def admin_menu():
 def admin_handler(message):
 
     if message.from_user.id != ADMIN_ID:
+        logger.warning("Попытка доступа к /admin от пользователя %s", message.from_user.id)
         bot.send_message(message.chat.id, "⛔ Нет доступа")
         return
+
+    logger.info("Админ %s открыл панель управления", message.from_user.id)
 
     bot.send_message(
         message.chat.id,
@@ -391,7 +411,7 @@ def admin_bookings_handler(call):
     try:
         all_bookings = get_all_bookings()
     except Exception as e:
-        print(f"Ошибка БД: {e}")
+        logger.error("Ошибка БД при получении всех броней: %s", e)
         bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
         return
 
@@ -424,7 +444,7 @@ def booking_page_handler(call):
     try:
         data = get_user_bookings(call.from_user.id)
     except Exception as e:
-        print(f"Ошибка БД: {e}")
+        logger.error("Ошибка БД при получении броней пользователя %s: %s", call.from_user.id, e)
         bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
         return
 
@@ -469,7 +489,7 @@ def admin_stats_handler(call):
     try:
         stats = get_stats()
     except Exception as e:
-        print(f"Ошибка БД: {e}")
+        logger.error("Ошибка БД при получении статистики: %s", e)
         bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
         return
 
@@ -483,5 +503,5 @@ def admin_stats_handler(call):
     )
 if __name__ == "__main__":
     init_db()
-    print("Бот запущен...")
+    logger.info("Бот запущен...")
     bot.infinity_polling()
