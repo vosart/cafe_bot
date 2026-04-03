@@ -14,7 +14,6 @@ from database import (init_db,
                       get_booking_by_id)
 from datetime import datetime
 
-
 STATUS_MAP = {
     "pending": "⏳ Ожидает",
     "confirmed": "✅ Подтверждена",
@@ -29,6 +28,7 @@ def is_valid_date(date_str: str) -> bool:
         return False
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+bot.remove_webhook()
 
 def main_menu():
     keyboard = InlineKeyboardMarkup()
@@ -186,7 +186,7 @@ def get_phone(message):
         )
     except Exception as e:
         print(f"Ошибка БД: {e}")
-        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        bot.send_message(message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
         return
 
 
@@ -481,4 +481,7 @@ def admin_stats_handler(call):
         f"Всего гостей: {stats["total_guests"]}\n",
         parse_mode="Markdown"
     )
-
+if __name__ == "__main__":
+    init_db()
+    print("Бот запущен...")
+    bot.infinity_polling()
