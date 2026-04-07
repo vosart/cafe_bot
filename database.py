@@ -110,6 +110,7 @@ def get_menu() -> list:
                     FROM menu
                     WHERE is_available = 1
         """)
+        return cursor.fetchall()
 
 
 def get_all_bookings() -> list:
