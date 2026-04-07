@@ -170,17 +170,16 @@ def get_menu_by_category(category: str):
                     """,
             (category,),
         )
-    return cursor.fetchall()
+        return cursor.fetchall()
 
 
 def toggle_menu_item(item_id: int, is_available: int):
     with get_db() as cursor:
-        cursor.excecute(
+        cursor.execute(
             """
                 UPDATE menu
                 SET is_available = ?
                 WHERE id = ?
             """,
-            (is_available, id),
+            (is_available, item_id),
         )
-    return
