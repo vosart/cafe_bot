@@ -21,15 +21,15 @@ def get_db():
 def init_db():
     with get_db() as cursor:
         cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS bookings (
-                        id           INTEGER PRIMARY     KEY AUTOINCREMENT,
-                        name         TEXT    NOT NULL,
-                        phone        TEXT    NOT NULL,
-                        date         TEXT    NOT NULL,
-                        guests       INTEGER NOT NULL,
-                        created_at   TEXT    DEFAULT     CURRENT_TIMESTAMP
-                    )                    
-                    """)
+            CREATE TABLE IF NOT EXISTS bookings (
+                id           INTEGER PRIMARY     KEY AUTOINCREMENT,
+                name         TEXT    NOT NULL,
+                phone        TEXT    NOT NULL,
+                date         TEXT    NOT NULL,
+                guests       INTEGER NOT NULL,
+                created_at   TEXT    DEFAULT     CURRENT_TIMESTAMP
+            )                    
+        """)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS menu (
@@ -73,6 +73,22 @@ def save_booking(
         return booking_id
 
 
+def add_menu_item(
+    category: str, name: str, description: str, price: float, photo_url: str
+) -> int:
+    with get_db() as cursor:
+        cursor.execute(
+            """
+                    INSERT INTO menu (category, name, description, price, photo_url)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+            (category, name, description, price, photo_url),
+        )
+
+        menu_id = cursor.lastrowid
+        return menu_id
+
+
 def update_booking_status(booking_id: int, status: str):
     with get_db() as cursor:
         cursor.execute(
@@ -85,6 +101,15 @@ def get_booking_by_id(booking_id: int):
         cursor.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,))
 
         return cursor.fetchone()
+
+
+def get_menu() -> list:
+    with get_db() as cursor:
+        cursor.execute("""
+                    SELECT id, category, name, description, price, photo_url
+                    FROM menu
+                    WHERE is_available = 1
+        """)
 
 
 def get_all_bookings() -> list:
