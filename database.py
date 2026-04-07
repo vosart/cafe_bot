@@ -168,20 +168,19 @@ def get_menu_by_category(category: str):
                     WHERE is_available = 1 AND category = ?
                     ORDER BY name
                     """,
-            (category),
+            (category,),
         )
-        return cursor.fetchall()
-    return
+    return cursor.fetchall()
 
 
-def toggle_menu_price(id: int, is_avaible: int):
+def toggle_menu_item(item_id: int, is_available: int):
     with get_db() as cursor:
-        cursor.excecuter(
+        cursor.excecute(
             """
                 UPDATE menu
-                SET is_avaible = ?
+                SET is_available = ?
                 WHERE id = ?
             """,
-            (is_avaible, id),
+            (is_available, id),
         )
     return
