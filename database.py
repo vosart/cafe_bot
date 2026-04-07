@@ -40,6 +40,20 @@ def init_db():
         except:
             pass
 
+    with get_db() as cursor:
+        cursor.execute(""""
+            CREATE TABLE IF NOT EXISTS menu (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                category        TEXT    NOT NULL,
+                name            TEXT    NOT NULL,
+                description     TEXT,
+                price           REAL    NOT NULL,
+                photo_url       TEXT,
+                is_available    BOOLEAN DEFAULT 1,
+                created_at      TEXT    DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
 def save_booking(name: str, phone: str, date: str, guests: int, telegram_id: int) -> int:
 
     with get_db() as cursor:
