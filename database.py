@@ -73,22 +73,6 @@ def save_booking(
         return booking_id
 
 
-def add_menu_item(
-    category: str, name: str, description: str, price: float, photo_url: str
-) -> int:
-    with get_db() as cursor:
-        cursor.execute(
-            """
-                    INSERT INTO menu (category, name, description, price, photo_url)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-            (category, name, description, price, photo_url),
-        )
-
-        menu_id = cursor.lastrowid
-        return menu_id
-
-
 def update_booking_status(booking_id: int, status: str):
     with get_db() as cursor:
         cursor.execute(
@@ -101,16 +85,6 @@ def get_booking_by_id(booking_id: int):
         cursor.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,))
 
         return cursor.fetchone()
-
-
-def get_menu() -> list:
-    with get_db() as cursor:
-        cursor.execute("""
-                    SELECT id, category, name, description, price, photo_url
-                    FROM menu
-                    WHERE is_available = 1
-        """)
-        return cursor.fetchall()
 
 
 def get_all_bookings() -> list:
@@ -155,3 +129,59 @@ def get_stats() -> dict:
         total_guests = cursor.fetchone()[0] or 0
 
         return {"total": total, "today": today, "total_guests": total_guests}
+
+
+# Функции для работы с меню
+def add_menu_item(
+    category: str, name: str, description: str, price: float, photo_url: str
+) -> int:
+    with get_db() as cursor:
+        cursor.execute(
+            """
+                    INSERT INTO menu (category, name, description, price, photo_url)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+            (category, name, description, price, photo_url),
+        )
+
+        menu_id = cursor.lastrowid
+        return menu_id
+
+
+def get_menu() -> list:
+    with get_db() as cursor:
+        cursor.execute("""
+                    SELECT id, category, name, description, price, photo_url
+                    FROM menu
+                    WHERE is_available = 1
+                    ORDER BY category
+        """)
+        return cursor.fetchall()
+
+
+def get_menu_by_category(category: str):
+    with get_db() as cursor:
+        cursor.execute(
+            """
+                    SELECT id, name, description, price, photo_url
+                    FROM menu
+                    WHERE is_available = 1 AND category = ?
+                    ORDER BY name
+                    """,
+            (category),
+        )
+        return cursor.fetchall()
+    return
+
+
+def toggle_menu_price(id: int, is_avaible: int):
+    with get_db() as cursor:
+        cursor.excecuter(
+            """
+                UPDATE menu
+                SET is_avaible = ?
+                WHERE id = ?
+            """,
+            (is_avaible, id),
+        )
+    return
