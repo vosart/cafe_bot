@@ -84,15 +84,19 @@ def start(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "menu")
 def handle_menu(call):
+    data = get_menu()
+    categories = {}
+    for item in data:
+        category = item[1]
+        if category not in categories:
+            categories[category] = []
+        categories[category].append(item)]
+    
     bot.answer_callback_query(call.id)
     bot.send_message(
         call.message.chat.id,
-        "📋 *Наше меню:*\n\n"
-        "☕ Американо — 150 руб\n"
-        "☕ Капучино — 200 руб\n"
-        "🍲 Борщ — 280 руб\n"
-        "🍝 Паста карбонара — 350 руб\n"
-        "🍰 Тирамису — 220 руб",
+        "📋 *Выберите категорию*\n\n"
+        f"{category for category in categories.keys()}\n"}"
         parse_mode="Markdown",
     )
 
