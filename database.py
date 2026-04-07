@@ -41,7 +41,7 @@ def init_db():
             pass
 
     with get_db() as cursor:
-        cursor.execute(""""
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS menu (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 category        TEXT    NOT NULL,
@@ -49,7 +49,7 @@ def init_db():
                 description     TEXT,
                 price           REAL    NOT NULL,
                 photo_url       TEXT,
-                is_available    BOOLEAN DEFAULT 1,
+                is_available    INTEGER DEFAULT 1,
                 created_at      TEXT    DEFAULT CURRENT_TIMESTAMP
             )
         """)
