@@ -28,17 +28,21 @@ def init_db():
                         date         TEXT    NOT NULL,
                         guests       INTEGER NOT NULL,
                         created_at   TEXT    DEFAULT     CURRENT_TIMESTAMP
-                    )
-                    CREATE TABLE IF NOT EXISTS menu (
-                        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                        category        TEXT    NOT NULL,
-                        name            TEXT    NOT NULL,
-                        description     TEXT,
-                        price           REAL    NOT NULL,
-                        photo_url       TEXT,
-                        is_available    INTEGER DEFAULT 1,
-                        created_at      TEXT    DEFAULT CURRENT_TIMESTAMP
+                    )                    
                     """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS menu (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                category        TEXT    NOT NULL,
+                name            TEXT    NOT NULL,
+                description     TEXT,
+                price           REAL    NOT NULL,
+                photo_url       TEXT,
+                is_available    INTEGER DEFAULT 1,
+                created_at      TEXT    DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
         try:
             cursor.execute(
