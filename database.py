@@ -52,7 +52,7 @@ def init_db():
                 telegram_id INTEGER NOT NULL,
                 rating INTEGER NOT NULL,
                 comment TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """)
 
@@ -170,6 +170,7 @@ def get_yesterday_bookings() -> list:
             LEFT JOIN reviews ON bookings.id = reviews.booking_id
             WHERE reviews.id IS NULL
             AND bookings.status = 'confirmed'
+            AND bookings.date = ?
             """,
             (yesterday,),
         )
