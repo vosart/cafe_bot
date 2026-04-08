@@ -134,16 +134,16 @@ def get_stats() -> dict:
 
 # Получить все брони на завтра
 def get_tomorrow_bookings() -> list:
-    tommorow = (datetime.now() + timedelta(days=1)).strftime("%d.%m.%Y")
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%d.%m.%Y")
     with get_db() as cursor:
         cursor.execute(
             """
-            SELECT id, name, phone, date, guests
+            SELECT id, name, phone, date, guests, telegram_id
             FROM bookings
             WHERE status = 'confirmed'
             AND date = ?
             """,
-            (tommorow,),
+            (tomorrow,),
         )
         return cursor.fetchall()
 
