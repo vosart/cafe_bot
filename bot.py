@@ -17,6 +17,8 @@ from database import (
     get_menu_by_category,
     add_menu_item,
     get_tomorrow_bookings,
+    save_review,
+    get_yesterday_bookings,
 )
 from datetime import datetime
 import schedule
@@ -257,7 +259,8 @@ def get_phone(message):
         parse_mode="Markdown",
     )
 
-    # Уведомление админу
+    # Уведомле
+�ие админу
     confirm_markup = InlineKeyboardMarkup()
     confirm_markup.row(
         InlineKeyboardButton(
@@ -576,6 +579,25 @@ def send_reminders():
             logger.error(
                 "Не удалось отправить напоминание пользователю %s: %s", booking[5], e
             )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("review_"))
+def send_review_requests(call):
+    bot.answer_callback_query(call.id)
+    bookings = get_yesterday_bookings()
+    rating = InlineKeyboardMarkup()
+    for booking in bookings:
+        rating.add(InlineKeyboardButton("⭐ 1", callback_data=f"review_{booking[0]}_1"))
+        rating.add(InlineKeyboardButton("⭐⭐ 2", callback_data=f"review_{booking[0]}_2"))
+        rating.add(InlineKeyboardButton("⭐⭐⭐ 3", callback_data=f"review_{booking[0]}_3"))
+        rating.add(InlineKeyboardButton("⭐⭐⭐⭐ 4", callback_data=f"review_{booking[0]}_4"))
+        rating.add(InlineKeyboardButton("⭐⭐⭐⭐⭐ 5", callback_data=f"review_{booking[0]}_5"))
+        bot.send_message(
+            booking[5],
+            f"Оставьте, пожалуйста, отзыв",
+            parse_mode="Mardown",
+            reply_markup=rating,
+        )
 
 
 def run_scheduler():
