@@ -581,21 +581,25 @@ def send_reminders():
             )
 
 
-def send_review_requests(call):
+def send_review_requests():
     bookings = get_yesterday_bookings()
     for booking in bookings:
-        rating = InlineKeyboardMarkup()
-        rating.add(InlineKeyboardButton("⭐ 1", callback_data=f"review_{booking[0]}_1"))
-        rating.add(InlineKeyboardButton("⭐⭐ 2", callback_data=f"review_{booking[0]}_2"))
-        rating.add(InlineKeyboardButton("⭐⭐⭐ 3", callback_data=f"review_{booking[0]}_3"))
-        rating.add(InlineKeyboardButton("⭐⭐⭐⭐ 4", callback_data=f"review_{booking[0]}_4"))
-        rating.add(InlineKeyboardButton("⭐⭐⭐⭐⭐ 5", callback_data=f"review_{booking[0]}_5"))
-        bot.send_message(
-            booking[5],
-            f"Оставьте, пожалуйста, отзыв",
-            parse_mode="Markdown",
-            reply_markup=rating,
-        )
+        try:
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⭐ 1", callback_data=f"review_{booking[0]}_1"))
+            markup.add(InlineKeyboardButton("⭐⭐ 2", callback_data=f"review_{booking[0]}_2"))
+            markup.add(InlineKeyboardButton("⭐⭐⭐ 3", callback_data=f"review_{booking[0]}_3"))
+            markup.add(InlineKeyboardButton("⭐⭐⭐⭐ 4", callback_data=f"review_{booking[0]}_4"))
+            markup.add(InlineKeyboardButton("⭐⭐⭐⭐⭐ 5", callback_data=f"review_{booking[0]}_5"))
+            bot.send_message(
+                booking[5],
+                f"Оставьте, пожалуйста, отзыв",
+                parse_mode="Markdown",
+                reply_markup=markup,
+            )
+            logger.info("Отзыв от %s успешно получен", booking[5])
+        except Exception as e:
+            logger.error("Не удалось получить отзыв от %s: %s", booking[5], e)
 
 
 def run_scheduler():
@@ -607,6 +611,7 @@ def run_scheduler():
 if __name__ == "__main__":
     init_db()
     schedule.every().day.at("10:00").do(send_reminders)
+    schedule.every().day.at("11:00").do(send_review_requests)
     thread = threading.Thread(target=run_scheduler, daemon=True)
     thread.start()
     logger.info("Бот запущен...")
