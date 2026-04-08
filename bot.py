@@ -1,5 +1,6 @@
 import math
 import logging
+from pydoc import text
 import telebot
 
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -259,8 +260,7 @@ def get_phone(message):
         parse_mode="Markdown",
     )
 
-    # Уведомле
-�ие админу
+    # Уведомление админу
     confirm_markup = InlineKeyboardMarkup()
     confirm_markup.row(
         InlineKeyboardButton(
@@ -600,6 +600,54 @@ def send_review_requests():
             logger.info("Отзыв от %s успешно получен", booking[5])
         except Exception as e:
             logger.error("Не удалось получить отзыв от %s: %s", booking[5], e)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("review_"))
+def handle_rating_callback(call):
+    try:
+        booking_id = int(call.data.split("_")[1])
+        rating = int(call.data.split("_")[2])
+        telegram_id = call.from_user.id
+
+        bot.answer_callback_query(call.id, text=f"Вы поставили {rating} ⭐")
+
+        msg = bot.send_message(
+            call.message.chat.id,
+            "Принято! Теперь, пожалуйста, напишите ваш текстовый отзыв"
+            "(или просто нажмите /cancel, если не хотите писать):"
+        )
+
+        bot.register_next_step_handler(msg, process_review_text, telegram_id, booking_id, rating)
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке рейтинга: {e}")
+        bot.send_message(call.message.chat.id, "Произошла ошибка. Попробуйте еще раз.")
+
+def process_review_text(message, telegram_id, booking_id, rating):
+    try:
+        if message.text == "/cancel":
+            bot.send_message(message.chat.id, "Отзыв не сохранен")
+            return
+        if not message.text:
+            bot.send_message(
+                message.chat.id,
+                "Пожалуйста пришлите отзыв, именно текстом"
+            )
+            return
+        review_text = message.text
+
+        save_review(booking_id, telegram_id, rating, message.text)
+
+        bot.send_message(
+            message.chat.id,
+            f"✅ Спасибо! Ваш отзыв ({rating}⭐) успешно сохранен.\n\n"
+            f"Текст: {review_text}"
+        )
+
+        logger.info(f"Отзыв для брони {booking_id} полностью получен.")
+
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении текста отзыва: {e}")
+
 
 
 def run_scheduler():
