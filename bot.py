@@ -555,6 +555,24 @@ def admin_stats_handler(call):
     )
 
 
+def send_reminders():
+    bookings = get_tomorrow_bookings()
+    for booking in bookings:
+        try:
+            bot.send_message(
+                booking[5],
+                f"🔔 Напоминание о брони!\n\n"
+                f"Завтра ждём вас в кафе *Уют*\n\n"
+                f"📅 Дата: {booking[3]}\n"
+                f"👥 Гостей: {booking[4]}\n\n"
+                f"Будем рады вас видеть! 😊",
+                parse_mode="Markdown",
+            )
+        except Exception as e:
+            logger.info(
+                "Не удалось отправить напоминание пользователю %s: %s", booking[5], e
+            )
+
 
 if __name__ == "__main__":
     init_db()
