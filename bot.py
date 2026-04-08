@@ -16,6 +16,7 @@ from database import (
     get_menu,
     get_menu_by_category,
     add_menu_item,
+    get_tomorrow_bookings,
 )
 from datetime import datetime
 
@@ -552,6 +553,7 @@ def admin_stats_handler(call):
         f"Всего гостей: {stats['total_guests']}\n",
         parse_mode="Markdown",
     )
+
 
 
 if __name__ == "__main__":
