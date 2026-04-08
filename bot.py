@@ -84,20 +84,24 @@ def start(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "menu")
 def handle_menu(call):
+    bot.answer_callback_query(call.id)
     data = get_menu()
     categories = {}
     for item in data:
         category = item[1]
         if category not in categories:
             categories[category] = []
-        categories[category].append(item)]
-    
-    bot.answer_callback_query(call.id)
+        categories[category].append(item)
+
+    markup = InlineKeyboardMarkup()
+    for category in categories:
+        markup.add(InlineKeyboardButton(category, callback_data=f"category_{category}"))
+
     bot.send_message(
         call.message.chat.id,
-        "📋 *Выберите категорию*\n\n"
-        f"{category for category in categories.keys()}\n"}"
+        "📋 *Наше меню*\nВыберите категорию: ",
         parse_mode="Markdown",
+        reply_markup=markup,
     )
 
 
