@@ -585,9 +585,9 @@ def run_scheduler():
 
 
 if __name__ == "__main__":
+    init_db()
     schedule.every().day.at("10:00").do(send_reminders)
     thread = threading.Thread(target=run_scheduler, daemon=True)
     thread.start()
-    init_db()
     logger.info("Бот запущен...")
     bot.infinity_polling()
