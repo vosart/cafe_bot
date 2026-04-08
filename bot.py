@@ -19,6 +19,9 @@ from database import (
     get_tomorrow_bookings,
 )
 from datetime import datetime
+import schedule
+import threading
+import time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -576,6 +579,8 @@ def send_reminders():
 
 
 if __name__ == "__main__":
+    target = schedule.every().day.at("10:00").do(send_reminders)
+    threading.Thread(target=target)
     init_db()
     logger.info("Бот запущен...")
     bot.infinity_polling()
