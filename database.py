@@ -1,5 +1,6 @@
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 
 DB_NAME = "cafe.db"
 
@@ -131,6 +132,22 @@ def get_stats() -> dict:
         return {"total": total, "today": today, "total_guests": total_guests}
 
 
+# Получить все брони на завтра
+def get_tomorrow_bookings() -> list:
+    tommorow = (datetime.now() + timedelta(days=1)).strftime("%d.%m.%Y")
+    with get_db() as cursor:
+        cursor.execute(
+            """
+            SELECT id, name, phone, date, guests
+            FROM bookings
+            WHERE status = 'confirmed'
+            AND date = ?
+            """,
+            (tommorow,),
+        )
+        return cursor.fetchall()
+
+
 # Функции для работы с меню
 def add_menu_item(
     category: str, name: str, description: str, price: float, photo_url: str
@@ -183,6 +200,3 @@ def toggle_menu_item(item_id: int, is_available: int):
             """,
             (is_available, item_id),
         )
-
-def get_tomorrow_bookings() -> list:
-    
