@@ -183,3 +183,6 @@ def toggle_menu_item(item_id: int, is_available: int):
             """,
             (is_available, item_id),
         )
+
+def get_tomorrow_bookings() -> list:
+    
