@@ -45,6 +45,17 @@ def init_db():
             )
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reviews(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                booking_id INTEGER NOT NULL,
+                telegram_id INTEGER NOT NULL,
+                rating INTEGER NOT NULL,
+                comment TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            )
+            """)
+
         try:
             cursor.execute(
                 "ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'pending'"
@@ -144,6 +155,23 @@ def get_tomorrow_bookings() -> list:
             AND date = ?
             """,
             (tomorrow,),
+        )
+        return cursor.fetchall()
+
+
+# Получить все вчерашние брони
+def get_yesterday_bookings() -> list:
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%d.%m.%Y")
+    with get_db() as cursor:
+        cursor.execute(
+            """
+            SELECT id, name, phone, date, guests, telegram_id
+            FROM bookings
+            LEFT JOIN reviews ON bookings.id = reviews.booking_id
+            WHERE reviews.id IS NULL
+            AND bookings.status = 'confirmed'
+            """,
+            (yesterday,),
         )
         return cursor.fetchall()
 
