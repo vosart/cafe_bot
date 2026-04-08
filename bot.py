@@ -123,7 +123,7 @@ def handle_category(call):
         bot.send_photo(
             call.message.chat.id,
             item[4],
-            caption=f"{item[1]}\n{item[2]}\nЦена: {item[3]} руб",
+            caption=f"*{item[1]}*\n{item[2]}\nЦена: {item[3]} руб",
             parse_mode="Markdown",
         )
 
