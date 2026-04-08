@@ -581,12 +581,10 @@ def send_reminders():
             )
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("review_"))
 def send_review_requests(call):
-    bot.answer_callback_query(call.id)
     bookings = get_yesterday_bookings()
-    rating = InlineKeyboardMarkup()
     for booking in bookings:
+        rating = InlineKeyboardMarkup()
         rating.add(InlineKeyboardButton("⭐ 1", callback_data=f"review_{booking[0]}_1"))
         rating.add(InlineKeyboardButton("⭐⭐ 2", callback_data=f"review_{booking[0]}_2"))
         rating.add(InlineKeyboardButton("⭐⭐⭐ 3", callback_data=f"review_{booking[0]}_3"))
@@ -595,7 +593,7 @@ def send_review_requests(call):
         bot.send_message(
             booking[5],
             f"Оставьте, пожалуйста, отзыв",
-            parse_mode="Mardown",
+            parse_mode="Markdown",
             reply_markup=rating,
         )
 
