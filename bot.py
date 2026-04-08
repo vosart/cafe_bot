@@ -568,8 +568,9 @@ def send_reminders():
                 f"Будем рады вас видеть! 😊",
                 parse_mode="Markdown",
             )
+            logger.info("Напоминание отправлено пользователю %s", booking[5])
         except Exception as e:
-            logger.info(
+            logger.error(
                 "Не удалось отправить напоминание пользователю %s: %s", booking[5], e
             )
 
