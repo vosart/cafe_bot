@@ -177,6 +177,19 @@ def get_yesterday_bookings() -> list:
         return cursor.fetchall()
 
 
+def save_review(booking_id: int, telegram_id: int, rating: int, comment: str) -> int:
+    with get_db() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO reviews (booking_id, telegram_id, rating, comment)
+            VALUES (?, ?, ?, ?)
+            """,
+            (booking_id, telegram_id, rating, comment),
+        )
+        review_id = cursor.lastrowid
+        return review_id
+
+
 # Функции для работы с меню
 def add_menu_item(
     category: str, name: str, description: str, price: float, photo_url: str
