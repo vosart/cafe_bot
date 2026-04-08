@@ -585,19 +585,29 @@ def send_review_requests():
     bookings = get_yesterday_bookings()
     for booking in bookings:
         try:
+            chat_id = booking[5]
+            if not chat_id:
+                logger.warning("Нет telegram id у брони %s, пропускаю отправку запроса отзыва", booking[0])
+                continue
+
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("⭐ 1", callback_data=f"review_{booking[0]}_1"))
-            markup.add(InlineKeyboardButton("⭐⭐ 2", callback_data=f"review_{booking[0]}_2"))
-            markup.add(InlineKeyboardButton("⭐⭐⭐ 3", callback_data=f"review_{booking[0]}_3"))
-            markup.add(InlineKeyboardButton("⭐⭐⭐⭐ 4", callback_data=f"review_{booking[0]}_4"))
-            markup.add(InlineKeyboardButton("⭐⭐⭐⭐⭐ 5", callback_data=f"review_{booking[0]}_5"))
+            markup.row(
+                InlineKeyboardButton("⭐", callback_data=f"review_{booking[0]}_1"),
+                InlineKeyboardButton("⭐⭐", callback_data=f"review_{booking[0]}_2"),
+                InlineKeyboardButton("⭐⭐⭐", callback_data=f"review_{booking[0]}_3"),
+                InlineKeyboardButton("⭐⭐⭐⭐", callback_data=f"review_{booking[0]}_4"),
+                InlineKeyboardButton("⭐⭐⭐⭐⭐", callback_data=f"review_{booking[0]}_5"),
+            )
+
             bot.send_message(
-                booking[5],
-                f"Оставьте, пожалуйста, отзыв",
+                chat_id,
+                "Оставьте, пожалуйста, отзыв",
                 parse_mode="Markdown",
                 reply_markup=markup,
             )
-            logger.info("Отзыв от %s успешно получен", booking[5])
+
+            logger.info("Запрос отзыва отправлен пользователю %s для брони %s", chat_id, booking[0])
+
         except Exception as e:
             logger.error("Не удалось получить отзыв от %s: %s", booking[5], e)
 
@@ -608,11 +618,32 @@ def handle_rating_callback(call):
         rating = int(call.data.split("_")[2])
         telegram_id = call.from_user.id
 
+        try:
+            booking = get_booking_by_id(booking_id)
+        except Exception as e:
+            logger.error("Ошибка БД при получении брони #%s: %s", booking_id, e)
+            bot.answer_callback_query(call.id, text="Ошибка при проверке брони. Попробуйте ещё раз.")
+            return
+
+        if not booking:
+            bot.answer_callback_query(call.id, text="Бронь не найдена")
+            return
+
+        try:
+            owner_id = int(booking[5])
+        except Exception:
+            owner_id = booking[5]
+
+        if owner_id != call.from_user.id:
+            bot.answer_callback_query(call.id, text="Вы не можете оставлять отзыв для этой брони", show_alert=True)
+            logger.warning("Пользователь %s попытался оставить отзыв к брони %s, которая принадлежит %s", call.from_user.id, booking_id, owner_id)
+            return
+
         bot.answer_callback_query(call.id, text=f"Вы поставили {rating} ⭐")
 
         msg = bot.send_message(
             call.message.chat.id,
-            "Принято! Теперь, пожалуйста, напишите ваш текстовый отзыв"
+            "Принято! Теперь, пожалуйста, напишите ваш текстовый отзыв "
             "(или просто нажмите /cancel, если не хотите писать):"
         )
 
@@ -624,30 +655,33 @@ def handle_rating_callback(call):
 
 def process_review_text(message, telegram_id, booking_id, rating):
     try:
-        if message.text == "/cancel":
+
+        if message.text and message.text.strip().lower().startswith("/cancel"):
             bot.send_message(message.chat.id, "Отзыв не сохранен")
             return
-        if not message.text:
-            bot.send_message(
+
+        if getattr(message, "content_type", "text") != "text" or not (message.text and message.text.strip()):
+            msg = bot.send_message(
                 message.chat.id,
-                "Пожалуйста пришлите отзыв, именно текстом"
+                "Пожалуйста пришлите отзыв именно текстом"
             )
+            bot.register_next_step_handler(msg, process_review_text, telegram_id, booking_id, rating)
             return
-        review_text = message.text
 
         save_review(booking_id, telegram_id, rating, message.text)
 
         bot.send_message(
             message.chat.id,
-            f"✅ Спасибо! Ваш отзыв ({rating}⭐) успешно сохранен.\n\n"
-            f"Текст: {review_text}"
+            f"✅ Спасибо! Ваш отзыв ({rating}⭐) успешно сохранен.\n\n",
+            reply_markup=main_menu(),
         )
 
-        logger.info(f"Отзыв для брони {booking_id} полностью получен.")
+        text_preview = message.text if len(message.text) <= 200 else message.text[:200] + "..."
+        logger.info("Отзыв для брони %s получен от %s rating=%s text_preview=%s", booking_id, telegram_id, rating, text_preview)
 
     except Exception as e:
         logger.error(f"Ошибка при сохранении текста отзыва: {e}")
-
+        bot.send_message(message.chat.id, "Произошла ошибка при сохранении отзыва. Попробуйте еще раз.")
 
 
 def run_scheduler():
