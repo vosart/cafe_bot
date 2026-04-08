@@ -112,7 +112,7 @@ def handle_menu(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("category_"))
 def handle_category(call):
     bot.answer_callback_query(call.id)
-    category = call.data.split("_")[1]
+    category = call.data.removeprefix("category_")
     data = get_menu_by_category(category)
     if not data:
         bot.send_message(
@@ -120,10 +120,10 @@ def handle_category(call):
         )
         return
     for item in data:
-        bot.send_photo(call.message.chat.id, item[4])
-        bot.send_message(
+        bot.send_photo(
             call.message.chat.id,
-            f"{item[1]}\n{item[2]}\nЦена: {item[3]}\n",
+            item[4],
+            caption=f"{item[1]}\n{item[2]}\nЦена: {item[3]} руб",
             parse_mode="Markdown",
         )
 
