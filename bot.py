@@ -1,6 +1,5 @@
 import math
 import logging
-from pydoc import text
 import telebot
 
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -50,7 +49,6 @@ def is_valid_date(date_str: str) -> bool:
         return True
     except ValueError:
         return False
-
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 bot.remove_webhook()
@@ -298,6 +296,36 @@ def user_bookings_handler(call):
             "Ошибка БД при получении броней пользователя %s: %s", call.from_user.id, e
         )
         bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+
+        @bot.callback_query_handler(func=lambda call: True)
+        def _debug_catch_all_callback(call):
+            try:
+                chat_id = (
+                    call.message.chat.id
+                    if getattr(call, "message", None)
+                    and getattr(call.message, "chat", None)
+                    else None
+                )
+                logger.info(
+                    "Получен callback_query: data=%s from_user=%s chat_id=%s message_id=%s",
+                    getattr(call, "data", None),
+                    getattr(getattr(call, "from_user", None), "id", None),
+                    chat_id,
+                    getattr(getattr(call, "message", None), "message_id", None),
+                )
+            except Exception as e:
+                logger.exception("Ошибка при логировании callback: %s", e)
+
+            try:
+                # Отвечаем пользователю кратким уведомлением — поможет понять, что бот получил callback
+                bot.answer_callback_query(
+                    call.id, text=f"Получен callback: {getattr(call, 'data', None)}"
+                )
+            except Exception as e:
+                logger.exception("Ошибка при ответе на callback: %s", e)
+
+        return
+
         return
 
     if not data:
@@ -468,7 +496,9 @@ def admin_bookings_handler(call):
         all_bookings = get_all_bookings()
     except Exception as e:
         logger.error("Ошибка БД при получении всех броней: %s", e)
-        bot.send_message(call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте позже...")
+        bot.send_message(
+            call.message.chat.id, "⚠️ Ошибка в БД. Попробуйте поm m m�a�е..."
+        )
         return
 
     if not all_bookings:
@@ -587,7 +617,10 @@ def send_review_requests():
         try:
             chat_id = booking[5]
             if not chat_id:
-                logger.warning("Нет telegram id у брони %s, пропускаю отправку запроса отзыва", booking[0])
+                logger.warning(
+                    "Нет telegram id у брони %s, пропускаю отправку запроса отзыва",
+                    booking[0],
+                )
                 continue
 
             markup = InlineKeyboardMarkup()
@@ -595,8 +628,12 @@ def send_review_requests():
                 InlineKeyboardButton("⭐", callback_data=f"review_{booking[0]}_1"),
                 InlineKeyboardButton("⭐⭐", callback_data=f"review_{booking[0]}_2"),
                 InlineKeyboardButton("⭐⭐⭐", callback_data=f"review_{booking[0]}_3"),
-                InlineKeyboardButton("⭐⭐⭐⭐", callback_data=f"review_{booking[0]}_4"),
-                InlineKeyboardButton("⭐⭐⭐⭐⭐", callback_data=f"review_{booking[0]}_5"),
+                InlineKeyboardButton(
+                    "⭐⭐⭐⭐", callback_data=f"review_{booking[0]}_4"
+                ),
+                InlineKeyboardButton(
+                    "⭐⭐⭐⭐⭐", callback_data=f"review_{booking[0]}_5"
+                ),
             )
 
             bot.send_message(
@@ -606,10 +643,15 @@ def send_review_requests():
                 reply_markup=markup,
             )
 
-            logger.info("Запрос отзыва отправлен пользователю %s для брони %s", chat_id, booking[0])
+            logger.info(
+                "Запрос отзыва отправлен пользователю %s для брони %s",
+                chat_id,
+                booking[0],
+            )
 
         except Exception as e:
             logger.error("Не удалось получить отзыв от %s: %s", booking[5], e)
+
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("review_"))
 def handle_rating_callback(call):
@@ -622,7 +664,9 @@ def handle_rating_callback(call):
             booking = get_booking_by_id(booking_id)
         except Exception as e:
             logger.error("Ошибка БД при получении брони #%s: %s", booking_id, e)
-            bot.answer_callback_query(call.id, text="Ошибка при проверке брони. Попробуйте ещё раз.")
+            bot.answer_callback_query(
+                call.id, text="Ошибка при проверке брони. Попробуйте ещё раз."
+            )
             return
 
         if not booking:
@@ -635,8 +679,17 @@ def handle_rating_callback(call):
             owner_id = booking[5]
 
         if owner_id != call.from_user.id:
-            bot.answer_callback_query(call.id, text="Вы не можете оставлять отзыв для этой брони", show_alert=True)
-            logger.warning("Пользователь %s попытался оставить отзыв к брони %s, которая принадлежит %s", call.from_user.id, booking_id, owner_id)
+            bot.answer_callback_query(
+                call.id,
+                text="Вы не можете оставлять отзыв для этой брони",
+                show_alert=True,
+            )
+            logger.warning(
+                "Пользователь %s попытался оставить отзыв к брони %s, которая принадлежит %s",
+                call.from_user.id,
+                booking_id,
+                owner_id,
+            )
             return
 
         bot.answer_callback_query(call.id, text=f"Вы поставили {rating} ⭐")
@@ -644,28 +697,33 @@ def handle_rating_callback(call):
         msg = bot.send_message(
             call.message.chat.id,
             "Принято! Теперь, пожалуйста, напишите ваш текстовый отзыв "
-            "(или просто нажмите /cancel, если не хотите писать):"
+            "(или просто нажмите /cancel, если не хотите писать):",
         )
 
-        bot.register_next_step_handler(msg, process_review_text, telegram_id, booking_id, rating)
+        bot.register_next_step_handler(
+            msg, process_review_text, telegram_id, booking_id, rating
+        )
 
     except Exception as e:
         logger.error(f"Ошибка при обработке рейтинга: {e}")
         bot.send_message(call.message.chat.id, "Произошла ошибка. Попробуйте еще раз.")
 
+
 def process_review_text(message, telegram_id, booking_id, rating):
     try:
-
         if message.text and message.text.strip().lower().startswith("/cancel"):
             bot.send_message(message.chat.id, "Отзыв не сохранен")
             return
 
-        if getattr(message, "content_type", "text") != "text" or not (message.text and message.text.strip()):
+        if getattr(message, "content_type", "text") != "text" or not (
+            message.text and message.text.strip()
+        ):
             msg = bot.send_message(
-                message.chat.id,
-                "Пожалуйста пришлите отзыв именно текстом"
+                message.chat.id, "Пожалуйста пришлите отзыв именно текстом"
             )
-            bot.register_next_step_handler(msg, process_review_text, telegram_id, booking_id, rating)
+            bot.register_next_step_handler(
+                msg, process_review_text, telegram_id, booking_id, rating
+            )
             return
 
         save_review(booking_id, telegram_id, rating, message.text)
@@ -676,12 +734,23 @@ def process_review_text(message, telegram_id, booking_id, rating):
             reply_markup=main_menu(),
         )
 
-        text_preview = message.text if len(message.text) <= 200 else message.text[:200] + "..."
-        logger.info("Отзыв для брони %s получен от %s rating=%s text_preview=%s", booking_id, telegram_id, rating, text_preview)
+        text_preview = (
+            message.text if len(message.text) <= 200 else message.text[:200] + "..."
+        )
+        logger.info(
+            "Отзыв для брони %s получен от %s rating=%s text_preview=%s",
+            booking_id,
+            telegram_id,
+            rating,
+            text_preview,
+        )
 
     except Exception as e:
         logger.error(f"Ошибка при сохранении текста отзыва: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка при сохранении отзыва. Попробуйте еще раз.")
+        bot.send_message(
+            message.chat.id,
+            "Произошла ошибка при сохранении отзыва. Попробуйте еще раз.",
+        )
 
 
 def run_scheduler():
@@ -697,4 +766,17 @@ if __name__ == "__main__":
     thread = threading.Thread(target=run_scheduler, daemon=True)
     thread.start()
     logger.info("Бот запущен...")
-    bot.infinity_polling()
+    bot.infinity_polling(timeout=90, long_polling_timeout = 15)
+
+
+# todo:
+#📸 Фото блюд в меню
+#🔔 Напоминание о брони за день до визита
+#⭐ Отзывы и оценки после посещения
+#🎁 Система лояльности (накопительные баллы)
+#📍 Адрес и карта проезда
+#📊 Экспорт броней в Excel
+#📅 Календарь броней по датам
+#🚫 Блокировка дат
+#💬 Рассылка сообщений всем пользователям
+#🌐 Выбор языка (русский / английский)
